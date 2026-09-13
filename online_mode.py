@@ -4,7 +4,7 @@ Online multiplayer GUI components with full registration/login and game flow
 """
 
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox
 import threading
 import sys
 import os
@@ -12,8 +12,11 @@ import os
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from network_client import NetworkClient
-from utils import valid_code
+try:
+    from network_client import NetworkClient
+    from utils import valid_code
+except ImportError as e:
+    print(f"Import error in online_mode: {e}")
 
 # Theme colors
 BG          = "#0f1117"
@@ -38,13 +41,12 @@ class OnlineMode:
     
     def __init__(self, parent_frame, network_client):
         self.frame = parent_frame
-        self.frame.configure(bg=BG)
         self.network = network_client
         self.current_match_id = None
         self.opponent_id = None
         self.opponent_username = None
         self.is_logged_in = False
-        self.my_role = None  # 'player1' or 'player2'
+        self.my_role = None
         self.my_secret = None
         self.game_started = False
         
@@ -52,32 +54,27 @@ class OnlineMode:
             self._build_ui()
             self._setup_network_callbacks()
         except Exception as e:
-            print(f"Error in OnlineMode.__init__: {e}")
+            print(f"Error in OnlineMode: {e}")
+            import traceback
+            traceback.print_exc()
             self._build_error_ui(str(e))
     
     def _build_error_ui(self, error_msg):
         """Show error message if online mode fails to load."""
-        error_frame = ttk.Frame(self.frame, style="Panel.TFrame")
+        error_frame = ttk.Frame(self.frame)
         error_frame.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
         
-        ttk.Label(
-            error_frame,
-            text="❌ Error Loading Online Mode",
-            style="Header.TLabel"
-        ).pack(pady=10)
+        error_label = ttk.Label(error_frame, text="❌ Error Loading Online Mode")
+        error_label.pack(pady=10)
         
-        ttk.Label(
-            error_frame,
-            text=f"Error: {error_msg}",
-            style="Dim.TLabel"
-        ).pack(pady=5)
+        error_detail = ttk.Label(error_frame, text=f"Error: {error_msg}")
+        error_detail.pack(pady=5)
         
-        ttk.Label(
+        info_label = ttk.Label(
             error_frame,
-            text="Make sure:\n1. server.py is running\n2. All files are in the same folder\n3. Internet connection is working",
-            style="Dim.TLabel",
-            justify=tk.LEFT
-        ).pack(pady=10)
+            text="Make sure:\n1. server.py is running\n2. All files are in the same folder\n3. Internet connection is working"
+        )
+        info_label.pack(pady=10)
     
     def _build_ui(self):
         """Build online mode UI."""
@@ -111,31 +108,24 @@ class OnlineMode:
         self.auth_frame = ttk.Frame(self.frame)
         self.auth_frame.grid(row=0, column=0, sticky="ew", pady=12, padx=12)
         
-        # Title
-        ttk.Label(self.auth_frame, text="👤 ONLINE ACCOUNT", font=FONT_HEADER).pack(
-            anchor="w", padx=12, pady=(12, 8)
-        )
+        title_label = ttk.Label(self.auth_frame, text="👤 ONLINE ACCOUNT", font=FONT_HEADER)
+        title_label.pack(anchor="w", padx=12, pady=(12, 8))
         
-        # Form frame
         form_frame = ttk.Frame(self.auth_frame)
         form_frame.pack(fill=tk.X, padx=12, pady=8)
         
-        # Username
         ttk.Label(form_frame, text="Username:").pack(side=tk.LEFT, padx=5)
         self.username_entry = ttk.Entry(form_frame, width=15)
         self.username_entry.pack(side=tk.LEFT, padx=5)
         
-        # Password
         ttk.Label(form_frame, text="Password:").pack(side=tk.LEFT, padx=5)
         self.password_entry = ttk.Entry(form_frame, width=15, show="*")
         self.password_entry.pack(side=tk.LEFT, padx=5)
         
-        # Email (for registration)
         ttk.Label(form_frame, text="Email:").pack(side=tk.LEFT, padx=5)
         self.email_entry = ttk.Entry(form_frame, width=15)
         self.email_entry.pack(side=tk.LEFT, padx=5)
         
-        # Buttons
         button_frame = ttk.Frame(self.auth_frame)
         button_frame.pack(fill=tk.X, padx=12, pady=8)
         
@@ -148,12 +138,7 @@ class OnlineMode:
         self.logout_btn = ttk.Button(button_frame, text="Logout", command=self._logout, state="disabled")
         self.logout_btn.pack(side=tk.LEFT, padx=4)
         
-        # Status
-        self.status_label = ttk.Label(
-            self.auth_frame,
-            text="❌ Not logged in",
-            font=FONT_SMALL
-        )
+        self.status_label = ttk.Label(self.auth_frame, text="❌ Not logged in", font=FONT_SMALL)
         self.status_label.pack(anchor="w", padx=12, pady=(0, 12))
     
     def _build_play_tab(self, notebook):
@@ -164,35 +149,32 @@ class OnlineMode:
         frame.grid_columnconfigure(0, weight=1)
         
         # Matchmaking section
-        match_frame = ttk.Frame(frame, style="Panel.TFrame")
+        match_frame = ttk.Frame(frame)
         match_frame.grid(row=0, column=0, sticky="ew", padx=12, pady=12)
         match_frame.grid_columnconfigure(2, weight=1)
         
-        ttk.Label(match_frame, text="🎯 Matchmaking", style="Header.TLabel").grid(
-            row=0, column=0, sticky="w", padx=12, pady=12
-        )
+        match_label = ttk.Label(match_frame, text="🎯 Matchmaking", font=FONT_HEADER)
+        match_label.grid(row=0, column=0, sticky="w", padx=12, pady=12)
         
         self.find_match_btn = ttk.Button(match_frame, text="Find Match", command=self._start_matchmaking)
         self.find_match_btn.grid(row=0, column=1, sticky="w", padx=12, pady=12)
         
-        self.matchmaking_status = ttk.Label(match_frame, text="Ready", style="Dim.TLabel")
+        self.matchmaking_status = ttk.Label(match_frame, text="Ready", font=FONT_SMALL)
         self.matchmaking_status.grid(row=0, column=2, sticky="e", padx=12, pady=12)
         
         # Secret setup section
-        secret_frame = ttk.Frame(frame, style="Panel.TFrame")
+        secret_frame = ttk.Frame(frame)
         secret_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=12)
         secret_frame.grid_remove()
         self.secret_frame = secret_frame
         
-        ttk.Label(secret_frame, text="📌 Set Your Secret", style="Header.TLabel").grid(
-            row=0, column=0, sticky="w", padx=12, pady=(12, 6)
-        )
+        secret_label = ttk.Label(secret_frame, text="📌 Set Your Secret", font=FONT_HEADER)
+        secret_label.grid(row=0, column=0, sticky="w", padx=12, pady=(12, 6))
         
-        ttk.Label(secret_frame, text="Enter your 4-digit secret code:", style="Body.TLabel").grid(
-            row=1, column=0, sticky="w", padx=12, pady=6
-        )
+        secret_inst = ttk.Label(secret_frame, text="Enter your 4-digit secret code:", font=FONT_BODY)
+        secret_inst.grid(row=1, column=0, sticky="w", padx=12, pady=6)
         
-        input_frame = ttk.Frame(secret_frame, style="Panel.TFrame")
+        input_frame = ttk.Frame(secret_frame)
         input_frame.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 12))
         
         self.secret_entry = ttk.Entry(input_frame, width=12, font=FONT_MONO)
@@ -201,54 +183,49 @@ class OnlineMode:
         self.set_secret_btn = ttk.Button(input_frame, text="Set Secret", command=self._set_secret)
         self.set_secret_btn.pack(side=tk.LEFT, padx=5)
         
-        self.secret_status = ttk.Label(secret_frame, text="Waiting for match...", style="Dim.TLabel")
+        self.secret_status = ttk.Label(secret_frame, text="Waiting for match...", font=FONT_SMALL)
         self.secret_status.grid(row=3, column=0, sticky="w", padx=12, pady=(0, 12))
         
         # Game info section
-        info_frame = ttk.Frame(frame, style="Panel.TFrame")
+        info_frame = ttk.Frame(frame)
         info_frame.grid(row=2, column=0, sticky="ew", padx=12, pady=12)
         info_frame.grid_remove()
         self.info_frame = info_frame
         
-        ttk.Label(info_frame, text="📊 Match Info", style="Header.TLabel").grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=12, pady=(12, 6)
-        )
+        info_label = ttk.Label(info_frame, text="📊 Match Info", font=FONT_HEADER)
+        info_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=12, pady=(12, 6))
         
-        ttk.Label(info_frame, text="Opponent:", style="Body.TLabel").grid(
-            row=1, column=0, sticky="w", padx=12, pady=6
-        )
-        self.opponent_label = ttk.Label(info_frame, text="", style="Dim.TLabel")
+        opp_label = ttk.Label(info_frame, text="Opponent:", font=FONT_BODY)
+        opp_label.grid(row=1, column=0, sticky="w", padx=12, pady=6)
+        self.opponent_label = ttk.Label(info_frame, text="", font=FONT_SMALL)
         self.opponent_label.grid(row=1, column=1, sticky="w", padx=12, pady=6)
         
-        ttk.Label(info_frame, text="Match Status:", style="Body.TLabel").grid(
-            row=2, column=0, sticky="w", padx=12, pady=6
-        )
-        self.match_status_label = ttk.Label(info_frame, text="", style="Dim.TLabel")
+        match_status_lbl = ttk.Label(info_frame, text="Match Status:", font=FONT_BODY)
+        match_status_lbl.grid(row=2, column=0, sticky="w", padx=12, pady=6)
+        self.match_status_label = ttk.Label(info_frame, text="", font=FONT_SMALL)
         self.match_status_label.grid(row=2, column=1, sticky="w", padx=12, pady=6)
         
-        # Game section
-        game_frame = ttk.Frame(frame, style="Panel.TFrame")
+        # Game section - use plain tk.Frame instead of styled panel
+        game_frame = ttk.Frame(frame)
         game_frame.grid(row=3, column=0, sticky="nsew", padx=12, pady=12)
         game_frame.grid_rowconfigure(1, weight=1)
         game_frame.grid_columnconfigure(0, weight=1)
         game_frame.grid_remove()
         self.game_frame = game_frame
         
-        ttk.Label(game_frame, text="🎮 Make Your Guess", style="Header.TLabel").grid(
-            row=0, column=0, sticky="w", padx=12, pady=(12, 6)
-        )
+        game_label = ttk.Label(game_frame, text="🎮 Make Your Guess", font=FONT_HEADER)
+        game_label.grid(row=0, column=0, sticky="w", padx=12, pady=(12, 6))
         
-        # Game log
-        self.game_log = scrolledtext.ScrolledText(
-            game_frame, height=15, width=80, bg=PANEL_ALT, fg=TEXT, font=FONT_MONO
-        )
+        # Game log - plain tk.Text widget
+        self.game_log = tk.Text(game_frame, height=15, width=80)
         self.game_log.grid(row=1, column=0, sticky="nsew", padx=8, pady=8)
         
         # Guess input
-        guess_input_frame = ttk.Frame(game_frame, style="Panel.TFrame")
+        guess_input_frame = ttk.Frame(game_frame)
         guess_input_frame.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
         
-        ttk.Label(guess_input_frame, text="Your guess:", style="Body.TLabel").pack(side=tk.LEFT, padx=5)
+        guess_lbl = ttk.Label(guess_input_frame, text="Your guess:", font=FONT_BODY)
+        guess_lbl.pack(side=tk.LEFT, padx=5)
         
         self.guess_entry = ttk.Entry(guess_input_frame, width=12, font=FONT_MONO)
         self.guess_entry.pack(side=tk.LEFT, padx=5)
@@ -263,27 +240,28 @@ class OnlineMode:
         frame.grid_rowconfigure(1, weight=1)
         frame.grid_columnconfigure(0, weight=1)
         
-        ttk.Label(frame, text="🏆 Top Players", style="Header.TLabel").grid(
-            row=0, column=0, sticky="w", padx=12, pady=12
-        )
+        lb_label = ttk.Label(frame, text="🏆 Top Players", font=FONT_HEADER)
+        lb_label.grid(row=0, column=0, sticky="w", padx=12, pady=12)
         
         self.leaderboard_tree = ttk.Treeview(
             frame,
-            columns=("rank", "username", "rating", "wins", "losses"),
+            columns=("rank", "id", "username", "rating", "wins", "losses"),
             show="headings",
             height=25
         )
         self.leaderboard_tree.heading("rank", text="Rank")
+        self.leaderboard_tree.heading("id", text="ID")
         self.leaderboard_tree.heading("username", text="Player")
         self.leaderboard_tree.heading("rating", text="Rating")
         self.leaderboard_tree.heading("wins", text="Wins")
         self.leaderboard_tree.heading("losses", text="Losses")
         
         self.leaderboard_tree.column("rank", width=50)
-        self.leaderboard_tree.column("username", width=150)
-        self.leaderboard_tree.column("rating", width=100)
-        self.leaderboard_tree.column("wins", width=80)
-        self.leaderboard_tree.column("losses", width=80)
+        self.leaderboard_tree.column("id", width=50)
+        self.leaderboard_tree.column("username", width=120)
+        self.leaderboard_tree.column("rating", width=80)
+        self.leaderboard_tree.column("wins", width=70)
+        self.leaderboard_tree.column("losses", width=70)
         
         self.leaderboard_tree.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
         
@@ -294,14 +272,28 @@ class OnlineMode:
         """Build friends tab."""
         frame = ttk.Frame(notebook)
         notebook.add(frame, text="👥 Friends")
-        frame.grid_rowconfigure(2, weight=1)
+        frame.grid_rowconfigure(3, weight=1)
         frame.grid_columnconfigure(0, weight=1)
         
-        # Add friend section
-        add_frame = ttk.Frame(frame, style="Panel.TFrame")
-        add_frame.grid(row=0, column=0, sticky="ew", padx=12, pady=12)
+        # User info section
+        info_frame = ttk.Frame(frame)
+        info_frame.grid(row=0, column=0, sticky="ew", padx=12, pady=12)
         
-        ttk.Label(add_frame, text="Add Friend (by ID):", style="Header.TLabel").pack(side=tk.LEFT, padx=12)
+        info_label = ttk.Label(info_frame, text="👤 Your Info", font=FONT_HEADER)
+        info_label.pack(side=tk.LEFT, padx=12)
+        
+        self.my_info_label = ttk.Label(info_frame, text="", font=FONT_SMALL)
+        self.my_info_label.pack(side=tk.LEFT, padx=12)
+        
+        copy_btn = ttk.Button(info_frame, text="Copy Your ID", command=self._copy_my_id)
+        copy_btn.pack(side=tk.LEFT, padx=4)
+        
+        # Add friend section
+        add_frame = ttk.Frame(frame)
+        add_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=12)
+        
+        add_label = ttk.Label(add_frame, text="Add Friend (by ID):", font=FONT_HEADER)
+        add_label.pack(side=tk.LEFT, padx=12)
         self.friend_id_entry = ttk.Entry(add_frame, width=10)
         self.friend_id_entry.pack(side=tk.LEFT, padx=5)
         
@@ -309,9 +301,8 @@ class OnlineMode:
         add_btn.pack(side=tk.LEFT, padx=4)
         
         # Friends list
-        ttk.Label(frame, text="👥 Your Friends", style="Header.TLabel").grid(
-            row=1, column=0, sticky="w", padx=12, pady=(12, 6)
-        )
+        friends_label = ttk.Label(frame, text="👥 Your Friends", font=FONT_HEADER)
+        friends_label.grid(row=2, column=0, sticky="w", padx=12, pady=(12, 6))
         
         self.friends_tree = ttk.Treeview(
             frame,
@@ -327,7 +318,7 @@ class OnlineMode:
         self.friends_tree.column("username", width=150)
         self.friends_tree.column("rating", width=100)
         
-        self.friends_tree.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 12))
+        self.friends_tree.grid(row=3, column=0, sticky="nsew", padx=12, pady=(0, 12))
     
     def _setup_network_callbacks(self):
         """Setup network event callbacks."""
@@ -338,8 +329,6 @@ class OnlineMode:
             self.network.on_opponent_guess = self._on_opponent_guess
             self.network.on_match_end = self._on_match_end
             self.network.on_error = self._on_error
-    
-    # ========== Auth ==========
     
     def _login(self):
         """Login to server."""
@@ -384,10 +373,8 @@ class OnlineMode:
             result = self.network.register(username, email, password)
             
             if result['success']:
-                messagebox.showinfo(
-                    "Success",
-                    f"Account '{username}' created!\n\nYou can now login."
-                )
+                user_id = result['user']['id']
+                messagebox.showinfo("Success", f"Account '{username}' created!\n\nYour ID: {user_id}\n\nYou can now login.")
                 self._show_online_content()
                 self.is_logged_in = True
             else:
@@ -413,7 +400,8 @@ class OnlineMode:
         self.auth_frame.grid_remove()
         self.content_frame.grid()
         self.logout_btn.configure(state="normal")
-        self.status_label.configure(text=f"✅ Logged in as: {self.network.username}", foreground=SUCCESS)
+        self.status_label.configure(text=f"✅ Logged in as: {self.network.username} (ID: {self.network.user_id})")
+        self.my_info_label.configure(text=f"Username: {self.network.username} | ID: {self.network.user_id}")
         self._refresh_leaderboard()
     
     def _show_auth(self):
@@ -421,9 +409,16 @@ class OnlineMode:
         self.auth_frame.grid()
         self.content_frame.grid_remove()
         self.logout_btn.configure(state="disabled")
-        self.status_label.configure(text="❌ Not logged in", foreground=DANGER)
+        self.status_label.configure(text="❌ Not logged in")
     
-    # ========== Matchmaking ==========
+    def _copy_my_id(self):
+        """Copy user ID to clipboard."""
+        try:
+            self.frame.clipboard_clear()
+            self.frame.clipboard_append(str(self.network.user_id))
+            messagebox.showinfo("Copied", f"Your ID ({self.network.user_id}) has been copied to clipboard!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to copy: {e}")
     
     def _start_matchmaking(self):
         """Join matchmaking queue."""
@@ -433,12 +428,25 @@ class OnlineMode:
         
         self.matchmaking_status.configure(text="🔄 Searching for opponent...")
         self.find_match_btn.configure(state="disabled")
-        try:
-            self.network.join_matchmaking()
-        except Exception as e:
-            messagebox.showerror("Error", f"Matchmaking failed: {str(e)}")
-            self.find_match_btn.configure(state="normal")
-            self.matchmaking_status.configure(text="Ready")
+        
+        def search():
+            try:
+                self.network.join_matchmaking()
+                # Wait for match to be found
+                for i in range(60):  # Wait up to 60 seconds
+                    if self.current_match_id:
+                        return
+                    self.frame.after(1000)
+                
+                # If no match found after 60 seconds
+                self.matchmaking_status.configure(text="❌ No opponent found (timeout)")
+                self.find_match_btn.configure(state="normal")
+            except Exception as e:
+                messagebox.showerror("Error", f"Matchmaking failed: {str(e)}")
+                self.find_match_btn.configure(state="normal")
+                self.matchmaking_status.configure(text="Ready")
+        
+        threading.Thread(target=search, daemon=True).start()
     
     def _on_match_found(self, data):
         """Handle match found."""
@@ -453,12 +461,9 @@ class OnlineMode:
         self.opponent_label.configure(text=self.opponent_username)
         self.match_status_label.configure(text="Waiting for secrets...")
         
-        # Show secret setup
         self.secret_frame.grid()
         self.info_frame.grid()
         self.secret_entry.focus_set()
-    
-    # ========== Game Setup ==========
     
     def _set_secret(self):
         """Set your secret code."""
@@ -473,7 +478,6 @@ class OnlineMode:
         self.set_secret_btn.configure(state="disabled")
         self.secret_status.configure(text="✓ Secret set! Waiting for opponent...")
         
-        # Send to server
         self.network.set_secret(self.current_match_id, secret)
     
     def _on_game_start(self, data):
@@ -481,7 +485,6 @@ class OnlineMode:
         self.game_started = True
         self.match_status_label.configure(text="✓ Game started!")
         
-        # Hide setup, show game
         self.secret_frame.grid_remove()
         self.game_frame.grid()
         
@@ -492,8 +495,6 @@ class OnlineMode:
         self.game_log.insert(tk.END, "Make your first guess!\n")
         
         self.guess_entry.focus_set()
-    
-    # ========== Gameplay ==========
     
     def _submit_guess(self):
         """Submit guess in match."""
@@ -528,15 +529,12 @@ class OnlineMode:
     def _on_match_end(self, data):
         """Handle match end."""
         winner_id = data.get('winner_id')
-        winning_guess = data.get('winning_guess')
         guesses_taken = data.get('guesses_taken')
         
         if winner_id == self.network.user_id:
             msg = f"🎉 YOU WON!\n\nYou found the code in {guesses_taken} guess(es)!"
-            color = SUCCESS
         else:
             msg = f"😢 YOU LOST!\n\nOpponent found your code!"
-            color = DANGER
         
         self.game_log.insert(tk.END, f"\n{'='*60}\n")
         self.game_log.insert(tk.END, msg + "\n")
@@ -547,7 +545,6 @@ class OnlineMode:
         
         messagebox.showinfo("Match Over", msg)
         
-        # Reset for next match
         self._reset_game()
     
     def _reset_game(self):
@@ -581,8 +578,6 @@ class OnlineMode:
         """Handle connected event."""
         print(f"Connected to server: {data}")
     
-    # ========== Leaderboard ==========
-    
     def _refresh_leaderboard(self):
         """Refresh leaderboard."""
         def fetch():
@@ -595,6 +590,7 @@ class OnlineMode:
                     for player in result['leaderboard']:
                         self.leaderboard_tree.insert('', 'end', values=(
                             player.get('rank', ''),
+                            player.get('id', ''),
                             player.get('username', ''),
                             player.get('rating', 0),
                             player.get('wins', 0),
@@ -604,8 +600,6 @@ class OnlineMode:
                 print(f"Error refreshing leaderboard: {e}")
         
         threading.Thread(target=fetch, daemon=True).start()
-    
-    # ========== Friends ==========
     
     def _add_friend(self):
         """Add friend."""
